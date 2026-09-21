@@ -1,0 +1,7 @@
+{
+  "name": "Labor Hajira Khata",
+  "description": "Worker attendance and daily wage khata register with Room database, payment tracking, and balance due calculations.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
+
