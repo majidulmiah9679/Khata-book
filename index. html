@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Labor Hajira Khata</title>
+<style>
+body{font-family:Arial;background:#f2f2f2;padding:10px}
+.card{background:white;padding:15px;border-radius:10px;margin-bottom:10px;box-shadow:0 2px 5px #ccc}
+input,select,button{width:100%;padding:10px;margin:5px 0;border-radius:8px;border:1px solid #ccc}
+button{background:#1a73e8;color:white;font-weight:bold}
+table{width:100%;background:white;border-collapse:collapse}
+th,td{border:1px solid #ddd;padding:8px;text-align:center}
+</style>
+</head>
+<body>
+<h2>📒 Labor Hajira Khata</h2>
+
+<div class="card">
+<input id="name" placeholder="Labor er Naam">
+<input id="wage" type="number" placeholder="Daily Hajira (500)">
+<button onclick="addWorker()">Add Labor</button>
+</div>
+
+<div class="card">
+<input type="date" id="date">
+<select id="workerList"></select>
+<select id="status"><option>Present</option><option>Absent</option><option>Half</option></select>
+<input id="advance" type="number" placeholder="Taka Nilo (Advance)">
+<button onclick="saveData()">Hajira Save</button>
+</div>
+
+<div class="card">
+<h3>📅 Month: <input type="month" id="month" onchange="showReport()"></h3>
+<table id="report"><tr><th>Naam</th><th>Hajira</th><th>Niyeche</th><th>Baki</th></tr></table>
+</div>
+
+<button onclick="backup()">📤 Backup (Download)</button>
+
+<script>
+let db = JSON.parse(localStorage.getItem('khata')||'{"workers":[],"records":[]}');
+function addWorker(){
+ db.workers.push({id:Date.now(),name:name.value,wage:+wage.value});
+ localStorage.setItem('khata',JSON.stringify(db)); location.reload();
+}
+function saveData(){
+ db.records.push({workerId:workerList.value,date:date.value,status:status.value,advance:+advance.value||0});
+ localStorage.setItem('khata',JSON.stringify(db)); showReport();
+}
+function showReport(){
+ let m=month.value; let html="<tr><th>Naam</th><th>Hajira</th><th>Niyeche</th><th>Baki</th></tr>";
+ db.workers.forEach(w=>{
+  let recs=db.records.filter(r=>r.workerId==w.id && r.date.startsWith(m));
+  let hajira=recs.filter(r=>r.status=='Present').length + recs.filter(r=>r.status=='Half').length*0.5;
+  let niyeche=recs.reduce((s,r)=>s+r.advance,0);
+  let baki=(hajira*w.wage)-niyeche;
+  html+=`<tr><td>${w.name}</td><td>${hajira}</td><td>${niyeche}</td><td>${baki}</td></tr>`;
+ });
+ report.innerHTML=html;
+ let sel=document.getElementById('workerList'); sel.innerHTML=db.workers.map(w=>`<option value="${w.id}">${w.name}</option>`).join('');
+}
+function backup(){
+ let a=document.createElement('a'); a.href='data:text/json,'+JSON.stringify(db);
+ a.download='khata-backup.json'; a.click();
+}
+showReport();
+date.valueAsDate=new Date(); month.value=new Date().toISOString().slice(0,7);
+</script>
+</body>
+</html>
