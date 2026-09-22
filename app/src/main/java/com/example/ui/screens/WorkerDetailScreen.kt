@@ -182,9 +182,63 @@ fun WorkerDetailScreen(
         }
     }
 
+    val computedSummary = remember(
+        worker,
+        workerAttendanceList,
+        workerPaymentsList,
+        settings.standardWorkHours
+    ) {
+        if (worker == null) return@remember null
+        var present = 0
+        var oneAndHalf = 0
+        var doubleHajira = 0
+        var half = 0
+        var absent = 0
+        var totalOvertimeHours = 0.0
+
+        workerAttendanceList.forEach { att ->
+            when (att.status) {
+                "Present", "1.0" -> present++
+                "OneAndHalf", "1.5" -> oneAndHalf++
+                "Double", "2.0" -> doubleHajira++
+                "Half", "0.5" -> half++
+                "Absent" -> absent++
+            }
+            totalOvertimeHours += att.overtime
+        }
+
+        val totalHajira = present * 1.0 + oneAndHalf * 1.5 + doubleHajira * 2.0 + half * 0.5
+        val stdHours = if (settings.standardWorkHours > 0) settings.standardWorkHours.toDouble() else 8.0
+        val hourlyWage = worker.dailyWage / stdHours
+        val totalOvertimeWage = totalOvertimeHours * hourlyWage
+        val baseEarned = (present * 1.0 + oneAndHalf * 1.5 + doubleHajira * 2.0 + half * 0.5) * worker.dailyWage
+        val totalEarned = baseEarned + totalOvertimeWage
+        val totalMoneyTaken = workerPaymentsList.sumOf { it.amountTaken }
+        val balanceDue = totalEarned - totalMoneyTaken
+
+        WorkerMonthlySummary(
+            worker = worker,
+            totalHajira = totalHajira,
+            presentDays = present,
+            oneAndHalfDays = oneAndHalf,
+            doubleDays = doubleHajira,
+            halfDays = half,
+            absentDays = absent,
+            totalOvertimeHours = totalOvertimeHours,
+            totalOvertimeWage = totalOvertimeWage,
+            totalEarned = totalEarned,
+            totalMoneyTaken = totalMoneyTaken,
+            balanceDue = balanceDue,
+            todayStatus = null,
+            todayOvertime = 0.0,
+            todayWage = 0.0
+        )
+    }
+
     // Helper to share khata statement
     fun shareStatement() {
-        if (worker == null || workerSummary == null) return
+        val activeSummary = computedSummary ?: workerSummary
+        if (worker == null || activeSummary == null) return
         val text = buildString {
             appendLine("===============================")
             appendLine("📖 LABOR ATTENDANCE KHATA (হাজিরা খাতা)")
@@ -193,17 +247,17 @@ fun WorkerDetailScreen(
             appendLine("Daily Rate: ${CurrencyFormatter.formatTaka(worker.dailyWage)}/day")
             appendLine("Month: ${KhataDateUtils.getMonthName(selectedMonth)} $selectedYear")
             appendLine("-------------------------------")
-            appendLine("Total Working Days: ${CurrencyFormatter.formatDays(workerSummary.totalHajira)}")
-            appendLine("• Full Days: ${workerSummary.presentDays} | Half Days: ${workerSummary.halfDays} | Absent: ${workerSummary.absentDays}")
-            if (workerSummary.totalOvertimeHours > 0) {
-                appendLine("• Overtime (OT): ${workerSummary.totalOvertimeHours} hrs (+${CurrencyFormatter.formatTaka(workerSummary.totalOvertimeWage)})")
+            appendLine("Total Working Days: ${CurrencyFormatter.formatDays(activeSummary.totalHajira)}")
+            appendLine("• Full (১.০): ${activeSummary.presentDays} | 1.5x (১.৫): ${activeSummary.oneAndHalfDays} | Half (০.৫): ${activeSummary.halfDays} | 2.0x (২.০): ${activeSummary.doubleDays} | Absent: ${activeSummary.absentDays}")
+            if (activeSummary.totalOvertimeHours > 0) {
+                appendLine("• Overtime (OT): ${activeSummary.totalOvertimeHours} hrs (+${CurrencyFormatter.formatTaka(activeSummary.totalOvertimeWage)})")
             }
             appendLine("-------------------------------")
-            appendLine("Total Wage Earned: ${CurrencyFormatter.formatTaka(workerSummary.totalEarned)}")
-            appendLine("Total Advance Taken: ${CurrencyFormatter.formatTaka(workerSummary.totalMoneyTaken)}")
+            appendLine("Total Wage Earned: ${CurrencyFormatter.formatTaka(activeSummary.totalEarned)}")
+            appendLine("Total Advance Taken: ${CurrencyFormatter.formatTaka(activeSummary.totalMoneyTaken)}")
             appendLine("-------------------------------")
-            val dueLabel = if (workerSummary.balanceDue >= 0) "NET BALANCE DUE (বাকি পাওনা)" else "OVERPAID ADVANCE (অতিরিক্ত অগ্রিম)"
-            appendLine("$dueLabel: ${CurrencyFormatter.formatTaka(kotlin.math.abs(workerSummary.balanceDue))}")
+            val dueLabel = if (activeSummary.balanceDue >= 0) "NET BALANCE DUE (বাকি পাওনা)" else "OVERPAID ADVANCE (অতিরিক্ত অগ্রিম)"
+            appendLine("$dueLabel: ${CurrencyFormatter.formatTaka(kotlin.math.abs(activeSummary.balanceDue))}")
             appendLine("===============================")
         }
 
@@ -318,14 +372,17 @@ fun WorkerDetailScreen(
 
             // 2. Authentic Khata Summary Ledger Card (শ্রমিকের সম্পূর্ণ হিসাব ও খতিয়ান) - PLACED FIRST AT TOP
             item {
-                KhataSummaryCard(
-                    worker = worker,
-                    workerSummary = workerSummary,
-                    selectedMonth = selectedMonth,
-                    selectedYear = selectedYear,
-                    highlightDue = settings.highlightDueBalance,
-                    onAddPaymentClick = { onAddPaymentClick(worker.id) }
-                )
+                val activeSummary = computedSummary ?: workerSummary
+                if (activeSummary != null) {
+                    KhataSummaryCard(
+                        worker = worker,
+                        workerSummary = activeSummary,
+                        selectedMonth = selectedMonth,
+                        selectedYear = selectedYear,
+                        highlightDue = settings.highlightDueBalance,
+                        onAddPaymentClick = { onAddPaymentClick(worker.id) }
+                    )
+                }
             }
 
             // 3. Top Calendar & Day of Week Ribbon ("উপরে month ar kon din ki bar oi ta thakbe")
@@ -766,12 +823,22 @@ fun KhataCalendarDateStrip(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         when (dayRow.status) {
-                            "Present" -> Box(
+                            "Present", "1.0" -> Box(
                                 modifier = Modifier
                                     .size(7.dp)
                                     .background(PresentGreen, CircleShape)
                             )
-                            "Half" -> Box(
+                            "OneAndHalf", "1.5" -> Box(
+                                modifier = Modifier
+                                    .size(7.dp)
+                                    .background(KhataPrimary, CircleShape)
+                            )
+                            "Double", "2.0" -> Box(
+                                modifier = Modifier
+                                    .size(7.dp)
+                                    .background(Color(0xFF1E88E5), CircleShape)
+                            )
+                            "Half", "0.5" -> Box(
                                 modifier = Modifier
                                     .size(7.dp)
                                     .background(HalfOrange, CircleShape)
@@ -907,44 +974,64 @@ fun KhataSummaryCard(
                         verticalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         Text(
-                            text = "১. হাজিরা কয়টা",
+                            text = "১. মোট হাজিরা কয়টা",
                             style = MaterialTheme.typography.labelSmall,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.primary
                         )
                         Text(
-                            text = "${workerSummary.totalHajira} দিন",
+                            text = "${CurrencyFormatter.formatDays(workerSummary.totalHajira)} দিন",
                             style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.ExtraBold,
                             color = MaterialTheme.colorScheme.onSurface
                         )
-                        // Attendance Breakdown (P, H, A)
+                        // Attendance Breakdown (1.0, 1.5, 0.5, 2.0, A)
                         Row(
                             horizontalArrangement = Arrangement.spacedBy(4.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
-                                text = "P: ${workerSummary.presentDays}",
+                                text = "1.0:${workerSummary.presentDays}",
                                 style = MaterialTheme.typography.labelSmall,
                                 fontWeight = FontWeight.Bold,
                                 color = PresentGreen,
-                                fontSize = 11.sp
+                                fontSize = 10.sp
                             )
+                            if (workerSummary.oneAndHalfDays > 0) {
+                                Text("•", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text(
+                                    text = "1.5:${workerSummary.oneAndHalfDays}",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = KhataPrimary,
+                                    fontSize = 10.sp
+                                )
+                            }
                             Text("•", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             Text(
-                                text = "H: ${workerSummary.halfDays}",
+                                text = "0.5:${workerSummary.halfDays}",
                                 style = MaterialTheme.typography.labelSmall,
                                 fontWeight = FontWeight.Bold,
                                 color = HalfOrange,
-                                fontSize = 11.sp
+                                fontSize = 10.sp
                             )
+                            if (workerSummary.doubleDays > 0) {
+                                Text("•", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text(
+                                    text = "2.0:${workerSummary.doubleDays}",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF1E88E5),
+                                    fontSize = 10.sp
+                                )
+                            }
                             Text("•", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             Text(
-                                text = "A: ${workerSummary.absentDays}",
+                                text = "A:${workerSummary.absentDays}",
                                 style = MaterialTheme.typography.labelSmall,
                                 fontWeight = FontWeight.Bold,
                                 color = AbsentRed,
-                                fontSize = 11.sp
+                                fontSize = 10.sp
                             )
                         }
                     }
@@ -962,7 +1049,7 @@ fun KhataSummaryCard(
                         verticalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         Text(
-                            text = "২. ওভারটাইম কয়টা",
+                            text = "২. ওভারটাইম কয় ঘণ্টা",
                             style = MaterialTheme.typography.labelSmall,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.primary
@@ -1272,37 +1359,67 @@ fun KhataRegisterDayLine(
 
                 // 2. Hajira Status Button / Badge
                 Box(
-                    modifier = Modifier.width(68.dp),
+                    modifier = Modifier.width(74.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     when (dayRow.status) {
-                        "Present" -> Surface(
+                        "Present", "1.0" -> Surface(
                             color = PresentGreen.copy(alpha = 0.18f),
                             border = androidx.compose.foundation.BorderStroke(1.dp, PresentGreen),
+                            shape = RoundedCornerShape(6.dp),
+                            modifier = Modifier.clickable { onQuickStatusChange("OneAndHalf") }
+                        ) {
+                            Text(
+                                text = "1.0 • পুরো",
+                                color = PresentGreen,
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 3.dp)
+                            )
+                        }
+
+                        "OneAndHalf", "1.5" -> Surface(
+                            color = KhataPrimary.copy(alpha = 0.18f),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, KhataPrimary),
                             shape = RoundedCornerShape(6.dp),
                             modifier = Modifier.clickable { onQuickStatusChange("Half") }
                         ) {
                             Text(
-                                text = "P • Full",
-                                color = PresentGreen,
+                                text = "1.5 • দেড়",
+                                color = KhataPrimary,
                                 style = MaterialTheme.typography.labelSmall,
                                 fontWeight = FontWeight.Bold,
-                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp)
+                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 3.dp)
                             )
                         }
 
-                        "Half" -> Surface(
+                        "Half", "0.5" -> Surface(
                             color = HalfOrange.copy(alpha = 0.18f),
                             border = androidx.compose.foundation.BorderStroke(1.dp, HalfOrange),
+                            shape = RoundedCornerShape(6.dp),
+                            modifier = Modifier.clickable { onQuickStatusChange("Double") }
+                        ) {
+                            Text(
+                                text = "0.5 • হাফ",
+                                color = HalfOrange,
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 3.dp)
+                            )
+                        }
+
+                        "Double", "2.0" -> Surface(
+                            color = Color(0xFF1E88E5).copy(alpha = 0.18f),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF1E88E5)),
                             shape = RoundedCornerShape(6.dp),
                             modifier = Modifier.clickable { onQuickStatusChange("Absent") }
                         ) {
                             Text(
-                                text = "H • Half",
-                                color = HalfOrange,
+                                text = "2.0 • ডবল",
+                                color = Color(0xFF1E88E5),
                                 style = MaterialTheme.typography.labelSmall,
                                 fontWeight = FontWeight.Bold,
-                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp)
+                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 3.dp)
                             )
                         }
 
@@ -1313,11 +1430,11 @@ fun KhataRegisterDayLine(
                             modifier = Modifier.clickable { onQuickStatusChange("Present") }
                         ) {
                             Text(
-                                text = "A • Absent",
+                                text = "A • ছুটি",
                                 color = AbsentRed,
                                 style = MaterialTheme.typography.labelSmall,
                                 fontWeight = FontWeight.Bold,
-                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp)
+                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 3.dp)
                             )
                         }
 
@@ -1327,7 +1444,7 @@ fun KhataRegisterDayLine(
                             modifier = Modifier.clickable { onQuickStatusChange("Present") }
                         ) {
                             Text(
-                                text = "+ Mark",
+                                text = "+ হাজিরা",
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 style = MaterialTheme.typography.labelSmall,
                                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp)
@@ -1437,8 +1554,10 @@ fun KhataDayEntryDialog(
     var advanceNote by remember { mutableStateOf("") }
 
     val baseEarned = when (selectedStatus) {
-        "Present" -> dailyWage
-        "Half" -> dailyWage * 0.5
+        "Present", "1.0" -> dailyWage * 1.0
+        "OneAndHalf", "1.5" -> dailyWage * 1.5
+        "Double", "2.0" -> dailyWage * 2.0
+        "Half", "0.5" -> dailyWage * 0.5
         else -> 0.0
     }
     val otEarned = if (overtimeHours > 0 && standardWorkHours > 0) {
@@ -1470,70 +1589,165 @@ fun KhataDayEntryDialog(
                 // Attendance Status Selector
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text(
-                        text = "Attendance (হাজিরা):",
+                        text = "Attendance (হাজিরা নির্বাচন):",
                         style = MaterialTheme.typography.labelMedium,
                         fontWeight = FontWeight.Bold
                     )
 
+                    // Row 1: 1.0 (Full), 1.5 (One and half), 0.5 (Half)
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        // Present Button
+                        // 1.0 Present Button
+                        val is10 = selectedStatus == "Present" || selectedStatus == "1.0"
                         Surface(
                             shape = RoundedCornerShape(8.dp),
-                            color = if (selectedStatus == "Present") PresentGreen.copy(alpha = 0.2f) else MaterialTheme.colorScheme.surfaceVariant,
-                            border = if (selectedStatus == "Present") androidx.compose.foundation.BorderStroke(1.5.dp, PresentGreen) else null,
+                            color = if (is10) PresentGreen.copy(alpha = 0.2f) else MaterialTheme.colorScheme.surfaceVariant,
+                            border = if (is10) androidx.compose.foundation.BorderStroke(1.5.dp, PresentGreen) else null,
                             modifier = Modifier
                                 .weight(1f)
                                 .clickable { selectedStatus = "Present" }
                         ) {
-                            Text(
-                                text = "Present",
-                                style = MaterialTheme.typography.labelMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = if (selectedStatus == "Present") PresentGreen else MaterialTheme.colorScheme.onSurface,
-                                textAlign = TextAlign.Center,
-                                modifier = Modifier.padding(vertical = 10.dp)
-                            )
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                modifier = Modifier.padding(vertical = 8.dp)
+                            ) {
+                                Text(
+                                    text = "১.০ হাজিরা",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (is10) PresentGreen else MaterialTheme.colorScheme.onSurface
+                                )
+                                Text(
+                                    text = "Full Day",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontSize = 9.sp,
+                                    color = if (is10) PresentGreen else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
                         }
 
-                        // Half Day Button
+                        // 1.5 One and Half Button
+                        val is15 = selectedStatus == "OneAndHalf" || selectedStatus == "1.5"
                         Surface(
                             shape = RoundedCornerShape(8.dp),
-                            color = if (selectedStatus == "Half") HalfOrange.copy(alpha = 0.2f) else MaterialTheme.colorScheme.surfaceVariant,
-                            border = if (selectedStatus == "Half") androidx.compose.foundation.BorderStroke(1.5.dp, HalfOrange) else null,
+                            color = if (is15) KhataPrimary.copy(alpha = 0.2f) else MaterialTheme.colorScheme.surfaceVariant,
+                            border = if (is15) androidx.compose.foundation.BorderStroke(1.5.dp, KhataPrimary) else null,
+                            modifier = Modifier
+                                .weight(1f)
+                                .clickable { selectedStatus = "OneAndHalf" }
+                        ) {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                modifier = Modifier.padding(vertical = 8.dp)
+                            ) {
+                                Text(
+                                    text = "১.৫ হাজিরা",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (is15) KhataPrimary else MaterialTheme.colorScheme.onSurface
+                                )
+                                Text(
+                                    text = "1.5x Day",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontSize = 9.sp,
+                                    color = if (is15) KhataPrimary else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+
+                        // 0.5 Half Day Button
+                        val is05 = selectedStatus == "Half" || selectedStatus == "0.5"
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = if (is05) HalfOrange.copy(alpha = 0.2f) else MaterialTheme.colorScheme.surfaceVariant,
+                            border = if (is05) androidx.compose.foundation.BorderStroke(1.5.dp, HalfOrange) else null,
                             modifier = Modifier
                                 .weight(1f)
                                 .clickable { selectedStatus = "Half" }
                         ) {
-                            Text(
-                                text = "Half Day",
-                                style = MaterialTheme.typography.labelMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = if (selectedStatus == "Half") HalfOrange else MaterialTheme.colorScheme.onSurface,
-                                textAlign = TextAlign.Center,
-                                modifier = Modifier.padding(vertical = 10.dp)
-                            )
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                modifier = Modifier.padding(vertical = 8.dp)
+                            ) {
+                                Text(
+                                    text = "০.৫ হাজিরা",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (is05) HalfOrange else MaterialTheme.colorScheme.onSurface
+                                )
+                                Text(
+                                    text = "Half Day",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontSize = 9.sp,
+                                    color = if (is05) HalfOrange else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+
+                    // Row 2: 2.0 (Double), Absent (ছুটি), Clear (✕)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        // 2.0 Double Day Button
+                        val is20 = selectedStatus == "Double" || selectedStatus == "2.0"
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = if (is20) Color(0xFF1E88E5).copy(alpha = 0.2f) else MaterialTheme.colorScheme.surfaceVariant,
+                            border = if (is20) androidx.compose.foundation.BorderStroke(1.5.dp, Color(0xFF1E88E5)) else null,
+                            modifier = Modifier
+                                .weight(1f)
+                                .clickable { selectedStatus = "Double" }
+                        ) {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                modifier = Modifier.padding(vertical = 8.dp)
+                            ) {
+                                Text(
+                                    text = "২.০ হাজিরা",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (is20) Color(0xFF1E88E5) else MaterialTheme.colorScheme.onSurface
+                                )
+                                Text(
+                                    text = "Double (2x)",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontSize = 9.sp,
+                                    color = if (is20) Color(0xFF1E88E5) else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
                         }
 
                         // Absent Button
+                        val isAbsent = selectedStatus == "Absent"
                         Surface(
                             shape = RoundedCornerShape(8.dp),
-                            color = if (selectedStatus == "Absent") AbsentRed.copy(alpha = 0.2f) else MaterialTheme.colorScheme.surfaceVariant,
-                            border = if (selectedStatus == "Absent") androidx.compose.foundation.BorderStroke(1.5.dp, AbsentRed) else null,
+                            color = if (isAbsent) AbsentRed.copy(alpha = 0.2f) else MaterialTheme.colorScheme.surfaceVariant,
+                            border = if (isAbsent) androidx.compose.foundation.BorderStroke(1.5.dp, AbsentRed) else null,
                             modifier = Modifier
                                 .weight(1f)
                                 .clickable { selectedStatus = "Absent" }
                         ) {
-                            Text(
-                                text = "Absent",
-                                style = MaterialTheme.typography.labelMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = if (selectedStatus == "Absent") AbsentRed else MaterialTheme.colorScheme.onSurface,
-                                textAlign = TextAlign.Center,
-                                modifier = Modifier.padding(vertical = 10.dp)
-                            )
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                modifier = Modifier.padding(vertical = 8.dp)
+                            ) {
+                                Text(
+                                    text = "ছুটি (A)",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (isAbsent) AbsentRed else MaterialTheme.colorScheme.onSurface
+                                )
+                                Text(
+                                    text = "Absent",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontSize = 9.sp,
+                                    color = if (isAbsent) AbsentRed else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
                         }
 
                         // Clear Button
@@ -1541,7 +1755,7 @@ fun KhataDayEntryDialog(
                             shape = RoundedCornerShape(8.dp),
                             color = if (selectedStatus == null) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
                             modifier = Modifier
-                                .size(40.dp)
+                                .size(48.dp)
                                 .clickable { selectedStatus = null }
                         ) {
                             Box(contentAlignment = Alignment.Center) {
@@ -1549,7 +1763,7 @@ fun KhataDayEntryDialog(
                                     imageVector = Icons.Default.Clear,
                                     contentDescription = "Clear Status",
                                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.size(18.dp)
+                                    modifier = Modifier.size(20.dp)
                                 )
                             }
                         }

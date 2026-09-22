@@ -49,18 +49,7 @@ class LaborKhataViewModel(application: Application) : AndroidViewModel(applicati
             }
         }
 
-        // Seed sample data on first run if database is empty (20 workers for testing 20+ bulk entry)
-        viewModelScope.launch {
-            repository.allWorkers.collect { workers ->
-                if (workers.isEmpty()) {
-                    repository.seedInitialDataIfEmpty(
-                        currentDate = KhataDateUtils.getTodayIso(),
-                        currentYear = KhataDateUtils.getCurrentYear(),
-                        currentMonth = KhataDateUtils.getCurrentMonth()
-                    )
-                }
-            }
-        }
+        // Auto-seeding disabled to ensure real user data and prevent fake names
     }
 
     // Selected Date & Month State
@@ -127,6 +116,8 @@ class LaborKhataViewModel(application: Application) : AndroidViewModel(applicati
             val workerPay = paymentsByWorker[worker.id] ?: emptyList()
 
             var present = 0
+            var oneAndHalf = 0
+            var doubleHajira = 0
             var half = 0
             var absent = 0
             var totalHajira = 0.0
@@ -134,11 +125,19 @@ class LaborKhataViewModel(application: Application) : AndroidViewModel(applicati
 
             for (att in workerAtt) {
                 when (att.status) {
-                    "Present" -> {
+                    "Present", "1.0" -> {
                         present++
                         totalHajira += 1.0
                     }
-                    "Half" -> {
+                    "OneAndHalf", "1.5" -> {
+                        oneAndHalf++
+                        totalHajira += 1.5
+                    }
+                    "Double", "2.0" -> {
+                        doubleHajira++
+                        totalHajira += 2.0
+                    }
+                    "Half", "0.5" -> {
                         half++
                         totalHajira += 0.5
                     }
@@ -161,8 +160,10 @@ class LaborKhataViewModel(application: Application) : AndroidViewModel(applicati
             val todayStatus = todayAtt?.status
             val todayOvertime = todayAtt?.overtime ?: 0.0
             val todayBaseWage = when (todayStatus) {
-                "Present" -> worker.dailyWage
-                "Half" -> worker.dailyWage * 0.5
+                "Present", "1.0" -> worker.dailyWage
+                "OneAndHalf", "1.5" -> worker.dailyWage * 1.5
+                "Double", "2.0" -> worker.dailyWage * 2.0
+                "Half", "0.5" -> worker.dailyWage * 0.5
                 else -> 0.0
             }
             val todayOvertimeWage = todayOvertime * hourlyWage
@@ -172,6 +173,8 @@ class LaborKhataViewModel(application: Application) : AndroidViewModel(applicati
                 worker = worker,
                 totalHajira = totalHajira,
                 presentDays = present,
+                oneAndHalfDays = oneAndHalf,
+                doubleDays = doubleHajira,
                 halfDays = half,
                 absentDays = absent,
                 totalOvertimeHours = totalOvertimeHours,

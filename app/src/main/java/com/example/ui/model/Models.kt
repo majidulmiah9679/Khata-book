@@ -12,6 +12,8 @@ data class WorkerMonthlySummary(
     val worker: Worker,
     val totalHajira: Double,
     val presentDays: Int,
+    val oneAndHalfDays: Int = 0,
+    val doubleDays: Int = 0,
     val halfDays: Int,
     val absentDays: Int,
     val totalOvertimeHours: Double = 0.0,
@@ -30,8 +32,10 @@ data class AttendanceRecordItem(
 ) {
     val baseAmount: Double
         get() = when (attendance.status) {
-            "Present" -> dailyWage
-            "Half" -> dailyWage * 0.5
+            "Present", "1.0" -> dailyWage
+            "OneAndHalf", "1.5" -> dailyWage * 1.5
+            "Double", "2.0" -> dailyWage * 2.0
+            "Half", "0.5" -> dailyWage * 0.5
             else -> 0.0
         }
 
@@ -179,8 +183,10 @@ data class KhataDayRow(
 
     val baseEarned: Double
         get() = when (status) {
-            "Present" -> dailyWage
-            "Half" -> dailyWage * 0.5
+            "Present", "1.0" -> dailyWage
+            "OneAndHalf", "1.5" -> dailyWage * 1.5
+            "Double", "2.0" -> dailyWage * 2.0
+            "Half", "0.5" -> dailyWage * 0.5
             else -> 0.0
         }
 

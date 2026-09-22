@@ -228,6 +228,9 @@ fun LaborKhataApp(viewModel: LaborKhataViewModel = viewModel()) {
                             },
                             onNavigateToSummary = {
                                 currentTab = NavigationTab.SUMMARY
+                            },
+                            onDeleteWorker = { workerId ->
+                                viewModel.deleteWorker(workerId)
                             }
                         )
                     }

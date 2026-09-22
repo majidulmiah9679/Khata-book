@@ -23,8 +23,10 @@ data class Attendance(
 ) {
     val hajiraUnits: Double
         get() = when (status) {
-            "Present" -> 1.0
-            "Half" -> 0.5
+            "Present", "1.0" -> 1.0
+            "OneAndHalf", "1.5" -> 1.5
+            "Double", "2.0" -> 2.0
+            "Half", "0.5" -> 0.5
             else -> 0.0
         }
 }

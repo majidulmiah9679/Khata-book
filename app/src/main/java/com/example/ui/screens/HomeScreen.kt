@@ -24,12 +24,14 @@ import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DateRange
+import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.HowToReg
 import androidx.compose.material.icons.filled.Payments
 import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -42,6 +44,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -86,12 +89,15 @@ fun HomeScreen(
     onNavigateToAttendance: () -> Unit,
     onNavigateToSettings: (() -> Unit)? = null,
     onNavigateToSummary: (() -> Unit)? = null,
+    onDeleteWorker: ((Int) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val strings = LocalAppStrings.current
     val totalWorkers = workerSummaries.size
-    val presentCount = workerSummaries.count { it.todayStatus == "Present" }
-    val halfCount = workerSummaries.count { it.todayStatus == "Half" }
+    val presentCount = workerSummaries.count { it.todayStatus == "Present" || it.todayStatus == "1.0" }
+    val oneAndHalfCount = workerSummaries.count { it.todayStatus == "OneAndHalf" || it.todayStatus == "1.5" }
+    val halfCount = workerSummaries.count { it.todayStatus == "Half" || it.todayStatus == "0.5" }
+    val doubleCount = workerSummaries.count { it.todayStatus == "Double" || it.todayStatus == "2.0" }
     val absentCount = workerSummaries.count { it.todayStatus == "Absent" }
     val todayEarned = workerSummaries.sumOf { it.todayWage }
 
@@ -100,6 +106,30 @@ fun HomeScreen(
     val monthTotalDue = workerSummaries.sumOf { it.balanceDue }
 
     var searchQuery by remember { mutableStateOf("") }
+    var workerToDelete by remember { mutableStateOf<Worker?>(null) }
+
+    if (workerToDelete != null && onDeleteWorker != null) {
+        AlertDialog(
+            onDismissRequest = { workerToDelete = null },
+            title = { Text(text = "Delete Worker (শ্রমিক মুছুন)") },
+            text = { Text(text = "Are you sure you want to delete '${workerToDelete?.name}' and all associated attendance and payment records?") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        workerToDelete?.let { onDeleteWorker(it.id) }
+                        workerToDelete = null
+                    }
+                ) {
+                    Text("Delete", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { workerToDelete = null }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
 
     val filteredSummaries = remember(workerSummaries, searchQuery) {
         if (searchQuery.isBlank()) {
@@ -528,7 +558,8 @@ fun HomeScreen(
                 WorkerTodayCard(
                     summary = summary,
                     onStatusChange = { newStatus -> onStatusChange(summary.worker.id, newStatus) },
-                    onClick = { onWorkerClick(summary.worker.id) }
+                    onClick = { onWorkerClick(summary.worker.id) },
+                    onDeleteClick = if (onDeleteWorker != null) { { workerToDelete = summary.worker } } else null
                 )
             }
         }
@@ -540,6 +571,7 @@ fun WorkerTodayCard(
     summary: WorkerMonthlySummary,
     onStatusChange: (String) -> Unit,
     onClick: () -> Unit,
+    onDeleteClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     Card(
@@ -563,14 +595,32 @@ fun WorkerTodayCard(
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = summary.worker.name,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Text(
+                            text = summary.worker.name,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        if (onDeleteClick != null) {
+                            IconButton(
+                                onClick = onDeleteClick,
+                                modifier = Modifier.size(22.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.DeleteOutline,
+                                    contentDescription = "Delete Worker",
+                                    tint = MaterialTheme.colorScheme.error.copy(alpha = 0.6f),
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                        }
+                    }
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(6.dp)

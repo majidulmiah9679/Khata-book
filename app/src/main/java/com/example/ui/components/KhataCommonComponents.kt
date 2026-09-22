@@ -228,10 +228,12 @@ fun StatusBadge(
     modifier: Modifier = Modifier
 ) {
     val (bgColor, textColor, text) = when (status) {
-        "Present" -> Triple(PresentGreenLight, PresentGreen, "Present (1 Day)")
-        "Half" -> Triple(HalfOrangeLight, HalfOrange, "Half (0.5 Day)")
-        "Absent" -> Triple(AbsentRedLight, AbsentRed, "Absent")
-        else -> Triple(Color(0xFFF3F4F6), Color(0xFF6B7280), "Unmarked")
+        "Present", "1.0" -> Triple(PresentGreenLight, PresentGreen, "১.০ হাজিরা (Full)")
+        "OneAndHalf", "1.5" -> Triple(Color(0xFFE0F2FE), Color(0xFF0284C7), "১.৫ হাজিরা (1.5)")
+        "Double", "2.0" -> Triple(Color(0xFFEDE9FE), Color(0xFF7C3AED), "২.০ হাজিরা (Double)")
+        "Half", "0.5" -> Triple(HalfOrangeLight, HalfOrange, "০.৫ হাজিরা (Half)")
+        "Absent" -> Triple(AbsentRedLight, AbsentRed, "অনুপস্থিত (Absent)")
+        else -> Triple(Color(0xFFF3F4F6), Color(0xFF6B7280), "বাকি আছে (Unmarked)")
     }
 
     Surface(
@@ -258,35 +260,28 @@ fun AttendanceToggleGroup(
 ) {
     Row(
         modifier = modifier,
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Present button
-        val isPresent = currentStatus == "Present"
+        // 1.0 Present button
+        val isPresent = currentStatus == "Present" || currentStatus == "1.0"
         Surface(
             onClick = { onStatusChange("Present") },
-            shape = RoundedCornerShape(10.dp),
+            shape = RoundedCornerShape(8.dp),
             color = if (isPresent) PresentGreen else Color.Transparent,
             border = if (isPresent) null else androidx.compose.foundation.BorderStroke(1.dp, PresentGreen),
             modifier = Modifier
-                .height(38.dp)
-                .weight(1f)
+                .height(36.dp)
+                .weight(1.1f)
                 .testTag("status_present_button")
         ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.Center,
-                modifier = Modifier.padding(horizontal = 4.dp)
+                modifier = Modifier.padding(horizontal = 2.dp)
             ) {
-                Icon(
-                    imageVector = Icons.Default.Check,
-                    contentDescription = null,
-                    tint = if (isPresent) Color.White else PresentGreen,
-                    modifier = Modifier.size(16.dp)
-                )
-                Spacer(modifier = Modifier.width(4.dp))
                 Text(
-                    text = "Present",
+                    text = "১.০ পুরো",
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.Bold,
                     color = if (isPresent) Color.White else PresentGreen,
@@ -296,32 +291,53 @@ fun AttendanceToggleGroup(
             }
         }
 
-        // Half button
-        val isHalf = currentStatus == "Half"
+        // 1.5 One and Half button
+        val isOneAndHalf = currentStatus == "OneAndHalf" || currentStatus == "1.5"
+        Surface(
+            onClick = { onStatusChange("1.5") },
+            shape = RoundedCornerShape(8.dp),
+            color = if (isOneAndHalf) Color(0xFF0284C7) else Color.Transparent,
+            border = if (isOneAndHalf) null else androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF0284C7)),
+            modifier = Modifier
+                .height(36.dp)
+                .weight(1.1f)
+                .testTag("status_one_and_half_button")
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center,
+                modifier = Modifier.padding(horizontal = 2.dp)
+            ) {
+                Text(
+                    text = "১.৫ দেড়",
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = if (isOneAndHalf) Color.White else Color(0xFF0284C7),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
+
+        // 0.5 Half button
+        val isHalf = currentStatus == "Half" || currentStatus == "0.5"
         Surface(
             onClick = { onStatusChange("Half") },
-            shape = RoundedCornerShape(10.dp),
+            shape = RoundedCornerShape(8.dp),
             color = if (isHalf) HalfOrange else Color.Transparent,
             border = if (isHalf) null else androidx.compose.foundation.BorderStroke(1.dp, HalfOrange),
             modifier = Modifier
-                .height(38.dp)
+                .height(36.dp)
                 .weight(1f)
                 .testTag("status_half_button")
         ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.Center,
-                modifier = Modifier.padding(horizontal = 4.dp)
+                modifier = Modifier.padding(horizontal = 2.dp)
             ) {
-                Icon(
-                    imageVector = Icons.Default.MoreTime,
-                    contentDescription = null,
-                    tint = if (isHalf) Color.White else HalfOrange,
-                    modifier = Modifier.size(16.dp)
-                )
-                Spacer(modifier = Modifier.width(4.dp))
                 Text(
-                    text = "Half",
+                    text = "০.৫ হাফ",
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.Bold,
                     color = if (isHalf) Color.White else HalfOrange,
@@ -335,28 +351,21 @@ fun AttendanceToggleGroup(
         val isAbsent = currentStatus == "Absent"
         Surface(
             onClick = { onStatusChange("Absent") },
-            shape = RoundedCornerShape(10.dp),
+            shape = RoundedCornerShape(8.dp),
             color = if (isAbsent) AbsentRed else Color.Transparent,
             border = if (isAbsent) null else androidx.compose.foundation.BorderStroke(1.dp, AbsentRed),
             modifier = Modifier
-                .height(38.dp)
-                .weight(1f)
+                .height(36.dp)
+                .weight(0.9f)
                 .testTag("status_absent_button")
         ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.Center,
-                modifier = Modifier.padding(horizontal = 4.dp)
+                modifier = Modifier.padding(horizontal = 2.dp)
             ) {
-                Icon(
-                    imageVector = Icons.Default.Close,
-                    contentDescription = null,
-                    tint = if (isAbsent) Color.White else AbsentRed,
-                    modifier = Modifier.size(16.dp)
-                )
-                Spacer(modifier = Modifier.width(4.dp))
                 Text(
-                    text = "Absent",
+                    text = "০ ছুটি",
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.Bold,
                     color = if (isAbsent) Color.White else AbsentRed,
